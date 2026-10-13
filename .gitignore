@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+data/kddcup.data_10_percent.csv
+.vscode/
