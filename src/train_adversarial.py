@@ -33,7 +33,7 @@ def train_adversarial_model():
     input_dim = X_scaled.shape[1]
     print(f"Giriş boyutu tespit edildi: {input_dim}")
     
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, _y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
     
     train_tensor_x = torch.tensor(X_train, dtype=torch.float32)
     train_tensor_y = torch.tensor(y_train, dtype=torch.long)
