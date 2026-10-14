@@ -11,3 +11,5 @@ reportlab
 fastapi
 uvicorn
 pydantic
+pytest
+httpx
