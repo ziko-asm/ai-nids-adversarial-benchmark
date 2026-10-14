@@ -80,3 +80,25 @@ def train_adversarial_step(model, X_batch, y_batch, epsilon=0.1, alpha=0.01, ste
     optimizer.step()
     
     return loss_adv.item()
+import numpy as np
+
+def calculate_feature_importance(model, X_sample):
+    """
+    Modelin qərar verərkən hansı şəbəkə xüsusiyyətlərinə (features) 
+    daha çox önəm verdiyini (XAI / Gradient-based Attribution) hesablayır.
+    """
+    model.eval()
+    X_tensor = X_sample.clone().detach().requires_grad_(True)
+    outputs = model(X_tensor)
+    
+    # Hədəf sinif üzrə gradientləri hesablayırıq
+    class_loss = outputs.sum()
+    class_loss.backward()
+    
+    # Gradientlərin mütləq qiyməti xüsusiyyətin əhəmiyyət dərəcəsini göstərir
+    importances = torch.abs(X_tensor.grad).mean(dim=0).detach().numpy()
+    
+    # Normalizasiya edirik (0-100 arası faizə çeviririk)
+    if importances.sum() > 0:
+        importances = (importances / importances.sum()) * 100
+    return importances
