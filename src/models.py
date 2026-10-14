@@ -1,4 +1,4 @@
-import torch.optim as optim
+from torch import optim
 import torch
 import torch.nn.functional as F
 from torch import nn
