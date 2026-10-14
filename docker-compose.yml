@@ -7,3 +7,12 @@ services:
       - "8000:8000"
     command: uvicorn src.api:app --host 0.0.0.0 --port 8000
     restart: always
+
+  nids-dashboard:
+    build: .
+    ports:
+      - "8501:8501"
+    command: streamlit run src/app.py --server.address=0.0.0.0 --server.port=8501
+    depends_on:
+      - nids-api
+    restart: always
