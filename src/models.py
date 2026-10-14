@@ -1,11 +1,12 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
+
 
 class MLP(nn.Module):
     """Mövcud Baseline MLP Modelimiz"""
     def __init__(self, input_dim, num_classes):
-        super(MLP, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(input_dim, 128)
         self.bn1 = nn.BatchNorm1d(128)
         self.fc2 = nn.Linear(128, 64)
@@ -25,7 +26,7 @@ class MLP(nn.Module):
 class Conv1DNet(nn.Module):
     """Yeni Əlavə Edilən 1D CNN Modelimiz (Müqayisə üçün)"""
     def __init__(self, input_dim, num_classes):
-        super(Conv1DNet, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv1d(in_channels=1, out_channels=16, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm1d(16)
         self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
@@ -48,7 +49,7 @@ class Conv1DNet(nn.Module):
         x = self.fc2(x)
         return x
 
-    import torch.optim as optim
+    from torch import optim
 
 def train_adversarial_step(model, X_batch, y_batch, epsilon=0.1, alpha=0.01, steps=5):
     """
@@ -80,7 +81,6 @@ def train_adversarial_step(model, X_batch, y_batch, epsilon=0.1, alpha=0.01, ste
     optimizer.step()
     
     return loss_adv.item()
-import numpy as np
 
 def calculate_feature_importance(model, X_sample):
     """

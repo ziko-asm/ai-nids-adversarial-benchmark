@@ -1,12 +1,14 @@
-import torch
-import torch.nn as nn
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import TensorDataset, DataLoader
+from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
+
 from model import NIDSModel
+
 
 def pgd_attack(model, data, target, epsilon, alpha, num_steps):
     perturbed_data = data.clone().detach()
@@ -93,7 +95,7 @@ def evaluate_robustness_curve():
     plt.figure(figsize=(8, 5))
     plt.plot(epsilons, robust_accuracies, marker='o', linestyle='-', color='crimson', linewidth=2, markersize=6)
     plt.title('NIDS Robustness Curve under PGD Attack', fontsize=12, fontweight='bold')
-    plt.xlabel('Perturbation Magnitude (Epsilon $\epsilon$)', fontsize=10)
+    plt.xlabel(r'Perturbation Magnitude (Epsilon $\epsilon$)', fontsize=10)
     plt.ylabel('Robust Accuracy (%)', fontsize=10)
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.ylim(0, 105)

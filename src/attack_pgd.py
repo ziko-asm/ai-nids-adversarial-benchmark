@@ -1,11 +1,13 @@
-import torch
-import torch.nn as nn
-import pandas as pd
 import numpy as np
+import pandas as pd
+import torch
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import TensorDataset, DataLoader
+from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
+
 from model import NIDSModel
+
 
 def pgd_attack(model, data, target, epsilon, alpha, num_steps):
     # Orijinal datanın surətini çıxarıb üzərində dəyişiklik edirik
@@ -88,7 +90,7 @@ def evaluate_pgd_defense():
     clean_acc = 100 * correct_clean / total
     adv_acc = 100 * correct_adv / total
     
-    print(f"\n--- PGD BENCKMARK NƏTİCƏLƏRİ ---")
+    print("\n--- PGD BENCKMARK NƏTİCƏLƏRİ ---")
     print(f"Təmiz Data Dəqiqliyi (Clean Accuracy): {clean_acc:.2f}%")
     print(f"PGD Hücumu Altında Dəqiqlik (Robust Accuracy): {adv_acc:.2f}%")
 

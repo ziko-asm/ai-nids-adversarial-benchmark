@@ -1,12 +1,13 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import pandas as pd
 import numpy as np
+import pandas as pd
+import torch
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import TensorDataset, DataLoader
+from torch import nn, optim
+from torch.utils.data import DataLoader, TensorDataset
+
 from model import NIDSModel
+
 
 def fgsm_attack(image, epsilon, data_grad):
     sign_data_grad = data_grad.sign()

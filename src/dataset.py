@@ -1,9 +1,10 @@
+import numpy as np
 import pandas as pd
+import torch
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-import torch
 from torch.utils.data import DataLoader, TensorDataset
-import numpy as np
+
 
 def load_and_preprocess_data(file_path):
     df = pd.read_csv(file_path, header=None)

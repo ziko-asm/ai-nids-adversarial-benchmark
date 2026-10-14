@@ -1,6 +1,6 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
+from torch import nn, optim
+
 from dataset import load_and_preprocess_data
 from model import NIDSModel
 

@@ -1,7 +1,8 @@
+import torch
+from torch import nn
+
 from dataset import load_and_preprocess_data
 from model import NIDSModel
-import torch
-import torch.nn as nn
 
 
 def fgsm_attack(model, criterion, inputs, labels, epsilon):
@@ -59,7 +60,7 @@ def evaluate_adversarial_robustness():
   clean_accuracy = 100 * correct / total
   adv_accuracy = 100 * adversarial_correct / total
 
-  print(f"\n--- NƏTİCƏLƏR ---")
+  print("\n--- NƏTİCƏLƏR ---")
   print(f"Təmiz Modelin Dəqiqliyi (Clean Accuracy): {clean_accuracy:.2f}%")
   print(
       f"Hücumdan Sonrakı Dəqiqlik (Adversarial Accuracy):"

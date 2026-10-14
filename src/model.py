@@ -1,11 +1,10 @@
-import torch
-import torch.nn as nn
+from torch import nn
 
 
 class NIDSModel(nn.Module):
 
   def __init__(self, input_dim):
-    super(NIDSModel, self).__init__()
+    super().__init__()
     # Şəbəkə təbəqələri (Layers)
     self.layer1 = nn.Linear(input_dim, 64)
     self.bn1 = nn.BatchNorm1d(64)

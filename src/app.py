@@ -1,9 +1,7 @@
-from models import MLP, Conv1DNet
-import streamlit as st
-import torch
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import streamlit as st
 
 st.set_page_config(
     page_title="NIDS Adversarial Robustness Benchmark",
@@ -195,10 +193,10 @@ with xai_col2:
     else:
         st.info("Click the button to visualize feature attribution and interpret model decisions.")
         import io
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 st.markdown("---")
 st.header("📄 Export PhD Research Report")
