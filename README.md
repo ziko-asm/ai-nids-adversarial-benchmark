@@ -56,6 +56,7 @@ Where:
 3. **Requirement for Defense:** Standard Empirical Risk Minimization (ERM) is insufficient for security-critical NIDS deployments.
 
 ---
+![NIDS Robustness Curve](robustness_curve.png)
 
 ## Project Structure & Source Code
 
