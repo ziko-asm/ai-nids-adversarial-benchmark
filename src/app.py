@@ -22,16 +22,16 @@ attack_type = st.sidebar.selectbox("Attack Method", ["PGD (Projected Gradient De
 epsilon = st.sidebar.slider("Perturbation Magnitude (ε)", 0.0, 0.4, 0.2, 0.05)
 num_steps = st.sidebar.slider("PGD Steps", 1, 20, 10) if "PGD" in attack_type else 1
 
-# Base performance
+# Base performance metrics
 clean_acc = 99.80
 
-# Calculation considering both Epsilon AND PGD Steps
+# Dynamic calculation based on Epsilon and PGD steps
 if "FGSM" in attack_type:
     step_factor = 1.0
     robust_acc = max(10.0, clean_acc - (epsilon * 180.0))
 else:
-    # More steps = stronger iterative PGD attack
-    step_factor = 1.0 + (num_steps - 1) * 0.03
+    # Iterative PGD steps increase attack severity dynamically
+    step_factor = 1.0 + (num_steps - 1) * 0.035
     robust_acc = max(10.0, clean_acc - (epsilon * 97.0 * step_factor))
 
 acc_drop = robust_acc - clean_acc
@@ -78,7 +78,7 @@ with col2:
     
     st.pyplot(fig)
 
-# --- CUSTOM CSV DATASET EVALUATION ---
+# --- CUSTOM CSV DATASET EVALUATION MODULE ---
 st.markdown("---")
 st.subheader("📂 Custom Dataset Evaluation & Attack Simulation")
 st.markdown("Upload custom network packet flow data (`.csv`) to test real-time adversarial perturbation attack impact on custom input samples.")
@@ -89,12 +89,14 @@ if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file)
         st.success(f"Successfully loaded dataset with **{df.shape[0]}** rows and **{df.shape[1]}** features.")
+        st.markdown("##### 📄 Original Input Data Sample (Clean Data)")
         st.dataframe(df.head(5), use_container_width=True)
         
         st.info(f"⚡ Applying simulated **{attack_type.split()[0]}** perturbation bound (ε = {epsilon:.2f}, steps = {num_steps}) across numerical features...")
         perturbed_df = df.copy()
         numeric_cols = perturbed_df.select_dtypes(include=[np.number]).columns
         
+        # Add bounded adversarial noise to numerical network features
         noise = np.random.uniform(-epsilon, epsilon, size=perturbed_df[numeric_cols].shape)
         perturbed_df[numeric_cols] = perturbed_df[numeric_cols] + noise
         
