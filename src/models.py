@@ -47,3 +47,36 @@ class Conv1DNet(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x)
         return x
+
+    import torch.optim as optim
+
+def train_adversarial_step(model, X_batch, y_batch, epsilon=0.1, alpha=0.01, steps=5):
+    """
+    Modeli PGD saldırı örnekleriyle eğiterek savunmasını güçlendirir (Adversarial Training).
+    """
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    criterion = nn.CrossEntropyLoss()
+    
+    model.train()
+    X_adv = X_batch.clone().detach() + torch.FloatTensor(X_batch.shape).uniform_(-epsilon, epsilon)
+    X_adv = torch.clamp(X_adv, 0, 1)
+    
+    for _ in range(steps):
+        X_adv.requires_grad = True
+        outputs = model(X_adv)
+        loss = criterion(outputs, y_batch)
+        loss.backward()
+        
+        with torch.no_grad():
+            grad = X_adv.grad.sign()
+            X_adv = X_adv + alpha * grad
+            eta = torch.clamp(X_adv - X_batch, min=-epsilon, max=epsilon)
+            X_adv = torch.clamp(X_batch + eta, 0, 1).detach()
+            
+    optimizer.zero_grad()
+    outputs_adv = model(X_adv)
+    loss_adv = criterion(outputs_adv, y_batch)
+    loss_adv.backward()
+    optimizer.step()
+    
+    return loss_adv.item()
