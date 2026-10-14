@@ -40,5 +40,5 @@ def predict_traffic(data: NetworkTrafficInput):
             "confidence_score": round(risk_score if is_malicious else (1 - risk_score), 4),
             "adversarial_vulnerability_status": "High Risk" if is_malicious else "Stable"
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(e))
