@@ -1,5 +1,18 @@
-![CI/CD Pipeline Status](https://github.com/ziko-asm/ai-nids-adversarial-benchmark/actions/workflows/ci.yml/badge.svg)
+
 # AI-Powered NIDS Adversarial Robustness Benchmark & Research Suite
+
+
+![CI/CD Pipeline](https://github.com/ziko-asm/ai-nids-adversarial-benchmark/actions/workflows/ci.yml/badge.svg)
+![Streamlit App](https://img.shields.io/badge/streamlit-cloud-red?style=for-the-badge&logo=streamlit)
+![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-ee4c2c?style=for-the-badge&logo=pytorch&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)
+
+An advanced, production-grade research benchmark and interactive dashboard designed to evaluate, stress-test, and harden Deep Learning-based Network Intrusion Detection Systems (NIDS) against state-of-the-art adversarial perturbation attacks.
+
+---
+
+## ⚡ Executive Overview
 
 [![Streamlit App](https://img.shields.io/badge/Streamlit-Cloud-red?style=for-the-badge&logo=streamlit)](https://ai-nids-robustness.streamlit.app)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
