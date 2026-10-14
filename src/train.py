@@ -7,7 +7,7 @@ from model import NIDSModel
 
 def train():
   # Məlumat bazasının (dataset) emalı və yüklənməsi
-  train_loader, test_loader, input_dim = load_and_preprocess_data(
+  train_loader, _test_loader, input_dim = load_and_preprocess_data(
       "data/kddcup.data_10_percent.csv"
   )
 
