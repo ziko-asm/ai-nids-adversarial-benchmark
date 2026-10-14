@@ -1,3 +1,4 @@
+![CI/CD Pipeline Status](https://github.com/ziko-asm/ai-nids-adversarial-benchmark/actions/workflows/ci.yml/badge.svg)
 # AI-Powered NIDS Adversarial Robustness Benchmark & Research Suite
 
 [![Streamlit App](https://img.shields.io/badge/Streamlit-Cloud-red?style=for-the-badge&logo=streamlit)](https://ai-nids-robustness.streamlit.app)
