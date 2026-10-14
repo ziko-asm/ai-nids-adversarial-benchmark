@@ -1,47 +1,38 @@
-# 🛡️ AI-Powered NIDS Adversarial Robustness Benchmark
+# AI-Powered NIDS Adversarial Robustness Benchmark & Research Suite
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ai-nids-robustness.streamlit.app)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Streamlit App](https://img.shields.io/badge/Streamlit-Cloud-red?style=for-the-badge&logo=streamlit)](https://ai-nids-robustness.streamlit.app)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-ee4c2c?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-An end-to-end research benchmark and interactive dashboard evaluating the **Adversarial Robustness** of Deep Learning-based Network Intrusion Detection Systems (NIDS) under evasion attacks (**PGD** and **FGSM**).
-
-🌐 **Live Interactive Web App:** [ai-nids-robustness.streamlit.app](https://ai-nids-robustness.streamlit.app)
+An advanced, production-grade research benchmark and interactive dashboard designed to evaluate, stress-test, and harden Deep Learning-based Network Intrusion Detection Systems (NIDS) against state-of-the-art adversarial perturbation attacks.
 
 ---
 
-## 📌 Abstract & Research Overview
+## 🌟 Executive Overview
 
-Deep Neural Networks (DNNs) deployed in Network Intrusion Detection Systems (NIDS) offer high detection accuracy under normal operating conditions. However, they are highly vulnerable to **adversarial evasion attacks**, where imperceptible perturbations bounded by $L_\infty$-norm constraint ($\epsilon$) mislead the classifier into categorizing malicious network traffic as benign.
+Modern Network Intrusion Detection Systems powered by Deep Learning exhibit high vulnerability to adversarial machine learning. Minor, imperceptible perturbations injected into network traffic flow statistics can bypass standard neural networks entirely, causing catastrophic security failures (false negatives on malicious intrusions).
 
-This project implements an **adversarially trained Multi-Layer Perceptron (MLP)** benchmarked on network flow traffic. We evaluate empirical robustness under Projected Gradient Descent (PGD) and Fast Gradient Sign Method (FGSM) attacks, demonstrating that targeted **Adversarial Training** preserves robust detection performance under active threat vectors.
-
----
-
-## 📊 Key Experimental Results
-
-| Metric | Baseline MLP | Adversarially Trained NIDS |
-| :--- | :---: | :---: |
-| **Clean Accuracy (Benign Traffic)** | **99.80%** | **99.80%** |
-| **Robust Accuracy (FGSM, $\epsilon=0.2$)** | ~2.10% | **83.20%** |
-| **Robust Accuracy (PGD-10, $\epsilon=0.2$)** | ~0.00% (Complete Collapse) | **80.41%** |
+This research suite implements a rigorous benchmark comparing **Multi-Layer Perceptrons (MLP)** against **1-Dimensional Convolutional Neural Networks (1D-CNN)** under adversarial pressure, providing automated defenses, Explainable AI (XAI) attributions, and formal academic PDF reporting.
 
 ---
 
-## 🛠️ Key Features
+## 🏗️ System Architecture & Core Modules
 
-1. **Interactive Research Dashboard:** Deployed live via Streamlit Cloud for real-time attack simulation.
-2. **Dynamic Perturbation Analysis:** Live adjustment of perturbation magnitude ($\epsilon$) and iterative PGD steps ($1 \le k \le 20$).
-3. **Custom CSV Upload:** Upload custom packet capture/flow datasets to generate adversarial perturbation samples on-the-fly.
-4. **Reproducible Pipeline:** Modular PyTorch code structure for data preprocessing, adversarial training, and evaluation.
-
----
-
-## 🚀 Quick Start (Local Execution)
-
-### 1. Clone Repository & Install Dependencies
-```bash
-git clone [https://github.com/ziko-asm/ai-nids-adversarial-benchmark.git](https://github.com/ziko-asm/ai-nids-adversarial-benchmark.git)
-cd ai-nids-adversarial-benchmark
-pip install -r requirements.txt
+```text
+[ Network Traffic CSV ] ---> [ Data Preprocessing Pipeline ]
+                                       |
+       +-------------------------------+-------------------------------+
+       |                               |                               |
+       v                               v                               v
+[ MLP Baseline Model ]       [ 1D-CNN Proposed Model ]    [ Adversarial Perturbation Engine ]
+       |                               |                 (PGD / FGSM with Tunable ε)
+       +-------------------------------+-------------------------------+
+                                       |
+                                       v
+                     [ Interactive Streamlit Dashboard ]
+                                       |
+       +-------------------------------+-------------------------------+
+       |                               |                               |
+       v                               v                               v
+[ Defense & Retraining ]      [ XAI Feature Attribution ]     [ Automated PDF Report ]
