@@ -101,7 +101,7 @@ if uploaded_file is not None:
         
         st.markdown("##### 🚨 Perturbed Data Sample (Simulated Adversarial Attack Output)")
         st.dataframe(perturbed_df.head(5), use_container_width=True)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         st.error(f"Error parsing CSV file: {e}")
 
 st.markdown("---")
