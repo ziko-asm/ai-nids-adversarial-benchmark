@@ -28,7 +28,6 @@ jobs:
       run: |
         # Ruff kodun təmizliyini və sintaksisini yoxlayır
         ruff check .
-
-    - name: Run PyTest Unit Tests
+    - name: Run PyTest Unit Tests with Coverage
       run: |
-        pytest
+        pytest --cov=src --cov-report=xml

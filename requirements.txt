@@ -14,3 +14,4 @@ pydantic
 pytest
 httpx
 ruff
+pytest-cov
