@@ -95,20 +95,26 @@ with tab1:
     df = pd.DataFrame(lines)
     df.index.name = "ε (feature std)"
     long = df.reset_index().melt("ε (feature std)", var_name="Detector", value_name="value")
+    pick = alt.selection_point(fields=["Detector"], bind="legend")
     chart = (
         alt.Chart(long)
-        .mark_line(point=True, strokeWidth=2)
+        .mark_line(point=True, strokeWidth=2.5)
         .encode(
             x=alt.X("ε (feature std):Q", title="ε (feature standard deviations)"),
             y=alt.Y("value:Q", title=METRIC[metric], scale=alt.Scale(domain=[0, 1])),
             color=alt.Color("Detector:N", legend=alt.Legend(orient="bottom", columns=2)),
             strokeDash=alt.condition(alt.datum.Detector == "Trees · transfer from MLP",
                                      alt.value([5, 4]), alt.value([1, 0])),
+            opacity=alt.condition(pick, alt.value(1.0), alt.value(0.12)),
             tooltip=["Detector", "ε (feature std)", alt.Tooltip("value:Q", format=".3f")],
         )
+        .add_params(pick)
         .properties(height=400)
+        .interactive()
     )
     st.altair_chart(chart, use_container_width=True)
+    st.caption("Click a name in the legend to highlight that line (shift-click for several, "
+               "double-click empty space to reset). Scroll to zoom, drag to pan.")
     st.caption("Only attack records are perturbed; benign test traffic is unchanged. "
                "ε = 0 is the clean test set. Mean over seeds.")
     st.dataframe(df.round(3), use_container_width=True)
