@@ -10,6 +10,7 @@ import json
 import sys
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -63,15 +64,18 @@ st.caption(f"KDD Cup 1999 (10%): {d['rows_raw']:,} records, {d['rows_unique']:,}
 
 mlp_clean = row("mlp", "none", "clean", "none", 0.0)
 mid = 0.5 if 0.5 in meta["eps"] else meta["eps"][len(meta["eps"]) // 2]
-mlp_pgd = row("mlp", "none", "pgd", "constrained", mid)
-adv_pgd = row("mlp", "adv_train", "pgd", "constrained", mid)
+unc = row("mlp", "none", "pgd", "unconstrained", mid)
+con = row("mlp", "none", "pgd", "constrained", mid)
+adv = row("mlp", "adv_train", "pgd", "unconstrained", mid)
 c = st.columns(4)
-c[0].metric("MLP clean detection rate", f"{mlp_clean.recall:.3f}")
-c[1].metric(f"Under constrained PGD, ε={mid}", f"{mlp_pgd.recall:.3f}", f"{mlp_pgd.recall - mlp_clean.recall:+.3f}")
-c[2].metric("Same attack, adversarially trained MLP", f"{adv_pgd.recall:.3f}", f"{adv_pgd.recall - mlp_pgd.recall:+.3f} vs undefended")
-gbt = row("gbt", "none", "pgd_from_mlp", "constrained", mid)
-if gbt is not None:
-    c[3].metric("Tree model, attack transferred from MLP", f"{gbt.recall:.3f}")
+c[0].metric("MLP detection rate, no attack", f"{mlp_clean.recall:.3f}")
+c[1].metric(f"PGD ε={mid}, attacker may change anything", f"{unc.recall:.3f}",
+            f"{unc.recall - mlp_clean.recall:+.3f}")
+c[2].metric("Same attack, realistic constraints", f"{con.recall:.3f}",
+            f"{con.recall - mlp_clean.recall:+.3f}")
+c[3].metric("Unconstrained attack vs adversarially trained MLP", f"{adv.recall:.3f}",
+            f"{adv.recall - unc.recall:+.3f} vs undefended")
+st.caption("Detection rate = share of attack records the model still flags. Mean over seeds.")
 
 tab1, tab2, tab3, tab4 = st.tabs(["Robustness curves", "Explanations", "All results", "Report"])
 
@@ -90,7 +94,21 @@ with tab1:
         lines["Trees · transfer from MLP"] = curve("gbt", "none", "pgd_from_mlp", threat, metric)
     df = pd.DataFrame(lines)
     df.index.name = "ε (feature std)"
-    st.line_chart(df, height=380)
+    long = df.reset_index().melt("ε (feature std)", var_name="Detector", value_name="value")
+    chart = (
+        alt.Chart(long)
+        .mark_line(point=True, strokeWidth=2)
+        .encode(
+            x=alt.X("ε (feature std):Q", title="ε (feature standard deviations)"),
+            y=alt.Y("value:Q", title=METRIC[metric], scale=alt.Scale(domain=[0, 1])),
+            color=alt.Color("Detector:N", legend=alt.Legend(orient="bottom", columns=2)),
+            strokeDash=alt.condition(alt.datum.Detector == "Trees · transfer from MLP",
+                                     alt.value([5, 4]), alt.value([1, 0])),
+            tooltip=["Detector", "ε (feature std)", alt.Tooltip("value:Q", format=".3f")],
+        )
+        .properties(height=400)
+    )
+    st.altair_chart(chart, use_container_width=True)
     st.caption("Only attack records are perturbed; benign test traffic is unchanged. "
                "ε = 0 is the clean test set. Mean over seeds.")
     st.dataframe(df.round(3), use_container_width=True)
