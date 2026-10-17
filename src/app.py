@@ -97,8 +97,8 @@ with tab1:
 
 with tab2:
     x = R.get("xai", {})
-    l, r = st.columns(2)
-    for col, key, title in [(l, "ig_mlp", "MLP"), (r, "ig_cnn", "1D-CNN")]:
+    left, right = st.columns(2)
+    for col, key, title in [(left, "ig_mlp", "MLP"), (right, "ig_cnn", "1D-CNN")]:
         if key in x:
             col.subheader(f"Integrated Gradients, {title}")
             col.bar_chart(pd.DataFrame(x[key]["top"]).set_index("feature")["share"], height=320)
@@ -128,7 +128,13 @@ with tab4:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import letter
         from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        from reportlab.platypus import (
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
 
         buf = io.BytesIO()
         doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=48, rightMargin=48)

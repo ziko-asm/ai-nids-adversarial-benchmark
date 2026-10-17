@@ -8,14 +8,19 @@ import random
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import (accuracy_score, f1_score, precision_score,
-                             recall_score, roc_auc_score)
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from src.attack import ThreatModel, pgd
 from src.models import build_model
 
-HPARAMS = dict(epochs=12, batch_size=512, lr=1e-3, weight_decay=1e-5, patience=4,
-               adv_eps=0.25, adv_steps=7)
+HPARAMS = {"epochs": 12, "batch_size": 512, "lr": 1e-3, "weight_decay": 1e-5, "patience": 4,
+           "adv_eps": 0.25, "adv_steps": 7}
 
 
 def set_seed(seed: int) -> None:

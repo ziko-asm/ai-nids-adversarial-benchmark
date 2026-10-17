@@ -13,7 +13,6 @@ import json
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Union
 
 import pandas as pd
 import torch
@@ -52,7 +51,7 @@ def get_model():
 
 
 class Record(BaseModel):
-    features: Union[list, dict] = Field(
+    features: list | dict = Field(
         ..., description="41 raw KDD Cup 99 fields, either as a list in the standard order "
                          "or as a {name: value} object")
 

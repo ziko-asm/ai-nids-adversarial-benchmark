@@ -11,7 +11,7 @@ gbt  - gradient-boosted trees (scikit-learn). Not differentiable, so it is only
 from __future__ import annotations
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 NEURAL_MODELS = ("mlp", "cnn")
 

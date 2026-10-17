@@ -95,7 +95,7 @@ class Preprocessor:
             blocks.append(onehot)
         return np.concatenate(blocks, axis=1)
 
-    def fit(self, df: pd.DataFrame) -> "Preprocessor":
+    def fit(self, df: pd.DataFrame) -> Preprocessor:
         self.categories = {c: sorted(df[c].astype(str).unique().tolist()) for c in CATEGORICAL}
         self.feature_names = NUMERIC + [f"{c}={v}" for c in CATEGORICAL for v in self.categories[c]]
         raw = self._raw_matrix(df)
@@ -120,7 +120,7 @@ class Preprocessor:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Preprocessor":
+    def from_dict(cls, d: dict) -> Preprocessor:
         return cls(**d)
 
 
@@ -141,7 +141,7 @@ def _stratified_indices(y: np.ndarray, rng: np.random.Generator, train=0.6, val=
     tr, va, te = [], [], []
     for cls in np.unique(y):
         idx = rng.permutation(np.where(y == cls)[0])
-        n_tr, n_va = int(round(len(idx) * train)), int(round(len(idx) * val))
+        n_tr, n_va = round(len(idx) * train), round(len(idx) * val)
         tr.append(idx[:n_tr])
         va.append(idx[n_tr:n_tr + n_va])
         te.append(idx[n_tr + n_va:])

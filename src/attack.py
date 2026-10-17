@@ -29,11 +29,11 @@ class ThreatModel:
         self.upper = None if upper is None else torch.as_tensor(upper, dtype=torch.float32)
 
     @classmethod
-    def unconstrained(cls, n_features: int) -> "ThreatModel":
+    def unconstrained(cls, n_features: int) -> ThreatModel:
         return cls(n_features)
 
     @classmethod
-    def constrained(cls, prep) -> "ThreatModel":
+    def constrained(cls, prep) -> ThreatModel:
         return cls(len(prep.feature_names), prep.mutable_mask(), prep.lower, prep.upper)
 
     def project(self, x_adv: torch.Tensor, x: torch.Tensor, eps: float) -> torch.Tensor:
