@@ -1,18 +1,11 @@
-version: '3.8'
-
 services:
-  nids-api:
+  api:
     build: .
-    ports:
-      - "8000:8000"
+    ports: ["8000:8000"]
+    volumes: ["./checkpoints:/app/checkpoints", "./results:/app/results"]
     command: uvicorn src.api:app --host 0.0.0.0 --port 8000
-    restart: always
-
-  nids-dashboard:
+  dashboard:
     build: .
-    ports:
-      - "8501:8501"
+    ports: ["8501:8501"]
+    volumes: ["./results:/app/results"]
     command: streamlit run src/app.py --server.address=0.0.0.0 --server.port=8501
-    depends_on:
-      - nids-api
-    restart: always

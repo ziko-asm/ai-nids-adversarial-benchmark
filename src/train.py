@@ -1,44 +1,54 @@
+"""
+Train one detector and save a self-contained checkpoint (weights + preprocessing).
+
+    python -m src.train --model mlp
+    python -m src.train --model cnn --adversarial      # PGD adversarial training
+
+The checkpoint is what src/api.py serves.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
 import torch
-from torch import nn, optim
 
-from dataset import load_and_preprocess_data
-from model import NIDSModel
+from src.attack import ThreatModel
+from src.dataset import DEFAULT_PATH, load_splits
+from src.models import NEURAL_MODELS
+from src.utils import HPARAMS, evaluate, train_model
 
 
-def train():
-  # Məlumat bazasının (dataset) emalı və yüklənməsi
-  train_loader, _test_loader, input_dim = load_and_preprocess_data(
-      "data/kddcup.data_10_percent.csv"
-  )
+def save_checkpoint(model, name: str, prep, path: Path, adversarial: bool, metrics: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({"model": name, "adversarial": adversarial, "state_dict": model.state_dict(),
+                "preprocessor": prep.to_dict(), "test_metrics": metrics}, path)
 
-  # Neyron şəbəkə modelinin və optimizatorun təyin olunması
-  model = NIDSModel(input_dim)
-  criterion = nn.CrossEntropyLoss()
-  optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-  epochs = 5
-  print("Modelin öyrədilməsinə başlanılır...")
+def main():
+    p = argparse.ArgumentParser(description="Train an intrusion detector on KDD Cup 99")
+    p.add_argument("--model", default="mlp", choices=NEURAL_MODELS)
+    p.add_argument("--adversarial", action="store_true", help="PGD adversarial training")
+    p.add_argument("--data", default=str(DEFAULT_PATH))
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--epochs", type=int, default=HPARAMS["epochs"])
+    p.add_argument("--out", default="checkpoints")
+    a = p.parse_args()
 
-  for epoch in range(epochs):
-    model.train()
-    running_loss = 0.0
-    for inputs, labels in train_loader:
-      optimizer.zero_grad()
-      outputs = model(inputs)
-      loss = criterion(outputs, labels)
-      loss.backward()
-      optimizer.step()
-      running_loss += loss.item()
-
-    print(
-        f"Epoch {epoch+1}/{epochs} - Loss (Xəta):"
-        f" {running_loss/len(train_loader):.4f}"
-    )
-
-  # Öyrədilmiş model çəkilərinin yadda saxlanılması
-  torch.save(model.state_dict(), "src/nids_model.pth")
-  print("Model uğurla öyrədildi və 'src/nids_model.pth' olaraq saxlanıldı!")
+    s = load_splits(a.data, seed=a.seed)
+    print(f"[*] {s.stats['rows_raw']:,} raw rows -> {s.stats['rows_unique']:,} unique, "
+          f"{s.stats['attack_share']:.1%} attacks, {s.stats['n_features']} model features")
+    print(f"[*] Training {a.model.upper()}{' with PGD adversarial training' if a.adversarial else ''}")
+    model = train_model(a.model, s.X_train, s.y_train, s.X_val, s.y_val, seed=a.seed,
+                        adversarial=a.adversarial, threat=ThreatModel.unconstrained(s.X_train.shape[1]),
+                        epochs=a.epochs)
+    m = evaluate(model, torch.as_tensor(s.X_test), s.y_test)
+    print(f"[*] Test: acc {m['accuracy']:.4f} | F1 {m['f1']:.4f} | recall {m['recall']:.4f} | AUC {m['roc_auc']:.4f}")
+    path = Path(a.out) / f"{a.model}{'_adv' if a.adversarial else ''}.pt"
+    save_checkpoint(model, a.model, s.prep, path, a.adversarial, m)
+    print(f"[*] Saved -> {path}")
 
 
 if __name__ == "__main__":
-  train()
+    main()

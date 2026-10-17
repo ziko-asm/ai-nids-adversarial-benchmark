@@ -1,293 +1,159 @@
-import matplotlib.pyplot as plt
-import numpy as np
+"""
+Streamlit dashboard. It only reads results/results.json produced by
+`python -m src.evaluate`; no number on screen is typed in by hand.
+
+    streamlit run src/app.py
+"""
+
+import io
+import json
+import sys
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(
-    page_title="NIDS Adversarial Robustness Benchmark",
-    page_icon="🛡️",
-    layout="wide"
-)
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-st.title("🛡️ AI-Powered NIDS Adversarial Robustness Dashboard")
-st.markdown("""
-This interactive research dashboard evaluates the **adversarial robustness** of a Deep Learning Network Intrusion Detection System (NIDS) 
-against state-of-the-art adversarial attacks (**PGD** and **FGSM**).
-""")
+RESULTS = ROOT / "results" / "results.json"
+NAME = {"mlp": "MLP", "cnn": "1D-CNN", "gbt": "Gradient-boosted trees"}
+DEF = {"none": "No defence", "adv_train": "PGD adversarial training"}
+METRIC = {"recall": "Detection rate (recall)", "f1": "F1", "accuracy": "Accuracy", "roc_auc": "ROC-AUC"}
 
-# Sidebar settings
-st.sidebar.header("⚙️ Attack Configuration")
-attack_type = st.sidebar.selectbox("Attack Method", ["PGD (Projected Gradient Descent)", "FGSM (Fast Gradient Sign Method)"])
-epsilon = st.sidebar.slider("Perturbation Magnitude (ε)", 0.0, 0.4, 0.2, 0.05)
-num_steps = st.sidebar.slider("PGD Steps", 1, 20, 10) if "PGD" in attack_type else 1
+st.set_page_config(page_title="NIDS Adversarial Robustness", page_icon="🛡️", layout="wide")
 
-# Base performance metrics
-clean_acc = 99.80
 
-# Dynamic calculation based on Epsilon and PGD steps
-if "FGSM" in attack_type:
-    step_factor = 1.0
-    robust_acc = max(10.0, clean_acc - (epsilon * 180.0))
-else:
-    # Iterative PGD steps increase attack severity dynamically
-    step_factor = 1.0 + (num_steps - 1) * 0.035
-    robust_acc = max(10.0, clean_acc - (epsilon * 97.0 * step_factor))
+@st.cache_data
+def load():
+    with open(RESULTS, encoding="utf-8") as f:
+        return json.load(f)
 
-acc_drop = robust_acc - clean_acc
 
-col1, col2 = st.columns([1, 1])
+if not RESULTS.exists():
+    st.title("NIDS adversarial robustness benchmark")
+    st.info("No results yet. Run `python -m src.evaluate --quick` from the repository root, then reload.")
+    st.stop()
 
-with col1:
-    st.subheader("📊 Dynamic Model Performance")
-    st.metric(label="Clean Accuracy (Clean Data)", value=f"{clean_acc:.2f}%")
-    st.metric(
-        label=f"Robust Accuracy ({attack_type.split()[0]}, ε = {epsilon:.2f})", 
-        value=f"{robust_acc:.2f}%", 
-        delta=f"{acc_drop:.2f}%"
-    )
-    
-    st.markdown("### 🔬 Attack Analysis Summary")
-    st.markdown(f"""
-    * **Selected Threat Model:** `{attack_type}`
-    * **Perturbation Bound (ε):** `{epsilon:.2f}`
-    * **PGD Iteration Steps:** `{num_steps}`
-    * **Target Model:** Adversarially Trained Multi-Layer Perceptron (MLP)
-    * **Observation:** Standard baseline NIDS models experience a complete collapse (~0% accuracy) under ε ≥ 0.1, whereas our robustly trained model preserves **{robust_acc:.2f}%** accuracy under active attack.
-    """)
+R = load()
+S = pd.DataFrame(R["summary"])
+meta = R["meta"]
 
-with col2:
-    st.subheader("📈 Real-Time Robustness Curve")
-    
-    eps_range = np.linspace(0.0, 0.4, 9)
-    if "FGSM" in attack_type:
-        curve_accs = [max(10.0, clean_acc - (e * 180.0)) for e in eps_range]
-    else:
-        curve_accs = [max(10.0, clean_acc - (e * 97.0 * step_factor)) for e in eps_range]
-        
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(eps_range, curve_accs, marker='o', color='#e74c3c', linewidth=2.5, label=f'{attack_type.split()[0]} Attack (Steps={num_steps})')
-    ax.axvline(x=epsilon, color='#2ecc71', linestyle='--', linewidth=2, label=f'Selected ε = {epsilon:.2f}')
-    
-    ax.set_title(f"NIDS Robustness Curve ({attack_type.split()[0]}, Steps={num_steps})", fontsize=12, fontweight='bold')
-    ax.set_xlabel("Perturbation Magnitude (Epsilon ε)", fontsize=10)
-    ax.set_ylabel("Robust Accuracy (%)", fontsize=10)
-    ax.set_ylim(0, 105)
-    ax.grid(True, linestyle=':', alpha=0.6)
-    ax.legend(loc="lower left")
-    
-    st.pyplot(fig)
 
-# --- CUSTOM CSV DATASET EVALUATION MODULE ---
-st.markdown("---")
-st.subheader("📂 Custom Dataset Evaluation & Attack Simulation")
-st.markdown("Upload custom network packet flow data (`.csv`) to test real-time adversarial perturbation attack impact on custom input samples.")
+def row(model, defense, attack, threat, eps):
+    q = S[(S.model == model) & (S.defense == defense) & (S.attack == attack) & (S.threat == threat)
+          & ((S.eps - eps).abs() < 1e-9)]
+    return None if q.empty else q.iloc[0]
 
-uploaded_file = st.file_uploader("Upload Network Traffic CSV File", type=["csv"])
 
-if uploaded_file is not None:
+def curve(model, defense, attack, threat, metric):
+    c = row(model, defense, "clean", "none", 0.0)
+    pts = S[(S.model == model) & (S.defense == defense) & (S.attack == attack) & (S.threat == threat)]
+    pts = pts.sort_values("eps")
+    xs = [0.0] + pts.eps.tolist()
+    ys = ([c[metric]] if c is not None else [None]) + pts[metric].tolist()
+    return pd.Series(ys, index=xs)
+
+
+# ---------------------------------------------------------------- header
+st.title("How easily can an adversary slip past a neural intrusion detector?")
+d = meta["data"]
+st.caption(f"KDD Cup 1999 (10%): {d['rows_raw']:,} records, {d['rows_unique']:,} after removing duplicates, "
+           f"{d['attack_share']:.0%} attacks · {len(meta['seeds'])} seed(s) · generated {meta['generated_at']}")
+
+mlp_clean = row("mlp", "none", "clean", "none", 0.0)
+mid = 0.5 if 0.5 in meta["eps"] else meta["eps"][len(meta["eps"]) // 2]
+mlp_pgd = row("mlp", "none", "pgd", "constrained", mid)
+adv_pgd = row("mlp", "adv_train", "pgd", "constrained", mid)
+c = st.columns(4)
+c[0].metric("MLP clean detection rate", f"{mlp_clean.recall:.3f}")
+c[1].metric(f"Under constrained PGD, ε={mid}", f"{mlp_pgd.recall:.3f}", f"{mlp_pgd.recall - mlp_clean.recall:+.3f}")
+c[2].metric("Same attack, adversarially trained MLP", f"{adv_pgd.recall:.3f}", f"{adv_pgd.recall - mlp_pgd.recall:+.3f} vs undefended")
+gbt = row("gbt", "none", "pgd_from_mlp", "constrained", mid)
+if gbt is not None:
+    c[3].metric("Tree model, attack transferred from MLP", f"{gbt.recall:.3f}")
+
+tab1, tab2, tab3, tab4 = st.tabs(["Robustness curves", "Explanations", "All results", "Report"])
+
+with tab1:
+    a, b, m = st.columns(3)
+    attack = a.radio("Attack", ["pgd", "fgsm"], format_func=str.upper, horizontal=True)
+    threat = b.radio("Threat model", ["constrained", "unconstrained"], horizontal=True,
+                     help="Constrained: protocol, service, TCP flag and victim-side flags are frozen and "
+                          "features stay within the training range.")
+    metric = m.radio("Metric", list(METRIC), format_func=METRIC.get, horizontal=True)
+    lines = {}
+    for mod in ["mlp", "cnn"]:
+        for de in ["none", "adv_train"]:
+            lines[f"{NAME[mod]} · {DEF[de]}"] = curve(mod, de, attack, threat, metric)
+    if attack == "pgd":
+        lines["Trees · transfer from MLP"] = curve("gbt", "none", "pgd_from_mlp", threat, metric)
+    df = pd.DataFrame(lines)
+    df.index.name = "ε (feature std)"
+    st.line_chart(df, height=380)
+    st.caption("Only attack records are perturbed; benign test traffic is unchanged. "
+               "ε = 0 is the clean test set. Mean over seeds.")
+    st.dataframe(df.round(3), use_container_width=True)
+
+with tab2:
+    x = R.get("xai", {})
+    l, r = st.columns(2)
+    for col, key, title in [(l, "ig_mlp", "MLP"), (r, "ig_cnn", "1D-CNN")]:
+        if key in x:
+            col.subheader(f"Integrated Gradients, {title}")
+            col.bar_chart(pd.DataFrame(x[key]["top"]).set_index("feature")["share"], height=320)
+            col.caption(f"Share of total |attribution| on 2,000 attack records. "
+                        f"Median completeness error: {x[key]['completeness_error_median']:.3f}")
+    k = "pgd_moves_mlp_constrained_eps0.5"
+    if k in x:
+        st.subheader("Features PGD changes most (MLP, constrained, ε = 0.5)")
+        st.bar_chart(pd.DataFrame(x[k]).set_index("feature")["mean_abs_delta"], height=280)
+    k = "detection_by_family_mlp_constrained_pgd_eps0.5"
+    if k in x:
+        st.subheader("Detection rate by attack family (MLP, constrained PGD, ε = 0.5)")
+        fam = pd.DataFrame(x[k]).T.sort_values("n", ascending=False)
+        st.dataframe(fam, use_container_width=True)
+
+with tab3:
+    show = S.copy()
+    show["model"] = show.model.map(NAME).fillna(show.model)
+    show["defense"] = show.defense.map(DEF)
+    st.dataframe(show, use_container_width=True, hide_index=True)
+    st.download_button("Download results.json", RESULTS.read_bytes(), "results.json", "application/json")
+
+with tab4:
+    st.write("A PDF summary built from the same results file.")
+
+    def pdf_bytes() -> bytes:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=48, rightMargin=48)
+        ss = getSampleStyleSheet()
+        story = [Paragraph("Adversarial robustness of neural intrusion detectors", ss["Title"]),
+                 Paragraph(f"KDD Cup 1999 (10%), {d['rows_unique']:,} unique records, "
+                           f"{len(meta['seeds'])} seed(s). Generated {meta['generated_at']}.", ss["Normal"]),
+                 Spacer(1, 12)]
+        hdr = ["Model", "Defence", "Clean"] + [f"PGD ε={e}" for e in meta["eps"]]
+        data = [hdr]
+        for mod in ["mlp", "cnn"]:
+            for de in ["none", "adv_train"]:
+                cl = row(mod, de, "clean", "none", 0.0)
+                data.append([NAME[mod], DEF[de], f"{cl.recall:.3f}"] +
+                            [f"{row(mod, de, 'pgd', 'constrained', e).recall:.3f}" for e in meta["eps"]])
+        t = Table(data)
+        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f3a5f")),
+                               ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                               ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+                               ("FONTSIZE", (0, 0), (-1, -1), 8)]))
+        story += [Paragraph("Detection rate under constrained PGD", ss["Heading2"]), t]
+        doc.build(story)
+        return buf.getvalue()
+
     try:
-        df = pd.read_csv(uploaded_file)
-        st.success(f"Successfully loaded dataset with **{df.shape[0]}** rows and **{df.shape[1]}** features.")
-        st.markdown("##### 📄 Original Input Data Sample (Clean Data)")
-        st.dataframe(df.head(5), use_container_width=True)
-        
-        st.info(f"⚡ Applying simulated **{attack_type.split()[0]}** perturbation bound (ε = {epsilon:.2f}, steps = {num_steps}) across numerical features...")
-        perturbed_df = df.copy()
-        numeric_cols = perturbed_df.select_dtypes(include=[np.number]).columns
-        
-        # Add bounded adversarial noise to numerical network features
-        noise = np.random.uniform(-epsilon, epsilon, size=perturbed_df[numeric_cols].shape)
-        perturbed_df[numeric_cols] = perturbed_df[numeric_cols] + noise
-        
-        st.markdown("##### 🚨 Perturbed Data Sample (Simulated Adversarial Attack Output)")
-        st.dataframe(perturbed_df.head(5), use_container_width=True)
-    except Exception as e:  # noqa: BLE001
-        st.error(f"Error parsing CSV file: {e}")
-
-st.markdown("---")
-st.caption("🚀 AI-NIDS Adversarial Benchmark | Developed for Advanced Academic & PhD Portfolio Research")
-# --- CROSS-ARCHITECTURE BENCHMARK MODULE ---
-st.markdown("---")
-st.subheader("📊 Cross-Architecture Robustness Benchmark (PhD Research Level)")
-st.write("Comparing baseline MLP performance against 1D-Convolutional Neural Network (1D-CNN) under adversarial perturbations.")
-
-# Model seçimi üçün sidebar və ya əsas paneldə interaktiv seçim
-bench_col1, bench_col2 = st.columns([1, 2])
-
-with bench_col1:
-    selected_bench_model = st.selectbox(
-        "Select Architecture for Benchmark Evaluation:",
-        ["Multi-Layer Perceptron (MLP)", "1D Convolutional Neural Network (1D-CNN)"]
-    )
-
-    if selected_bench_model == "Multi-Layer Perceptron (MLP)":
-        st.info("Baseline architecture: Fully connected layers optimized for tabular flow statistics.")
-    else:
-        st.info("Advanced architecture: 1D spatial feature extraction across sequential packet attributes.")
-
-with bench_col2:
-    # Elmi müqayisəli cədvəl data strukturu
-    benchmark_comparison = {
-        "Model Architecture": ["MLP (Baseline)", "1D-CNN (Proposed)"],
-        "Clean Accuracy (%)": [99.80, 99.45],
-        "FGSM Robustness (ε=0.1) (%)": [42.10, 54.80],
-        "PGD Robustness (ε=0.1) (%)": [18.50, 31.20],
-        "Vulnerability Level": ["High", "Moderate"]
-    }
-    
-    df_cross_bench = pd.DataFrame(benchmark_comparison)
-    st.dataframe(df_cross_bench.style.highlight_max(axis=0, color='lightgreen'), use_container_width=True)
-    st.markdown("---")
-st.header("🛡️ Adversarial Defense & Retraining Module")
-st.write("Evaluate how Adversarial Training restores robustness against aggressive PGD attacks.")
-
-def_col1, def_col2 = st.columns([1, 2])
-
-with def_col1:
-    st.subheader("Defense Settings")
-    defense_eps = st.slider("Defense Perturbation Bound (ε)", 0.01, 0.30, 0.10, step=0.01)
-    retrain_btn = st.button("🚀 Run Adversarial Retraining Simulation")
-
-with def_col2:
-    if retrain_btn:
-        st.success(f"Adversarial Retraining completed for ε = {defense_eps}!")
-        
-        defense_metrics = {
-            "Metric": ["Standard Baseline Model", "Adversarially Trained Model (Robust)"],
-            "Clean Accuracy": ["99.80%", "98.10%"],
-            "Robustness under PGD Attack": ["18.50%", "86.40%"],
-            "Defense Gain": ["Baseline", "+67.90% (Restored)"]
-        }
-        
-        df_def = pd.DataFrame(defense_metrics)
-        st.dataframe(df_def, use_container_width=True)
-        st.info("💡 **PhD Insight:** Adversarial training slightly trades off clean accuracy (-1.7%) to dramatically improve robustness (+67.9%) under high-intensity attacks.")
-    else:
-        st.info("Click the button to simulate model hardening via Adversarial Fine-Tuning.")
-        st.markdown("---")
-st.header("🔍 Explainable AI (XAI) & Feature Attribution Module")
-st.write("Analyze which network traffic features heavily influence the NIDS decision during adversarial attacks.")
-
-xai_col1, xai_col2 = st.columns([1, 2])
-
-with xai_col1:
-    st.subheader("XAI Configuration")
-    selected_model_xai = st.selectbox("Select Model for Explanation", ["MLP (Baseline)", "1D-CNN (Proposed)"])
-    xai_method = st.selectbox("Attribution Method", ["Gradient-based Feature Importance", "Integrated Gradients (Simulated)"])
-    run_xai_btn = st.button("📊 Generate XAI Explanation")
-
-with xai_col2:
-    if run_xai_btn:
-        st.success(f"Successfully generated explanation using {xai_method} for {selected_model_xai}!")
-        
-        # Süni intellektin qərarına təsir edən əsas şəbəkə xüsusiyyətləri
-        feature_data = {
-            "Network Traffic Feature": ["Flow Duration", "Total Fwd Packets", "Packet Length Mean", "SYN Flag Count", "Destination Port"],
-            "Importance Score (%)": [34.5, 25.2, 18.1, 14.2, 8.0]
-        }
-        df_xai = pd.DataFrame(feature_data)
-        
-        st.dataframe(df_xai, use_container_width=True)
-        st.bar_chart(df_xai.set_index("Network Traffic Feature"))
-        st.info("💡 **PhD Insight:** The XAI analysis proves that adversarial attackers primarily manipulate **Flow Duration** and **Total Fwd Packets** features to bypass the neural network detection.")
-    else:
-        st.info("Click the button to visualize feature attribution and interpret model decisions.")
-        import io
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-
-st.markdown("---")
-st.header("📄 Export PhD Research Report")
-st.write("Generate and download a comprehensive academic PDF report summarizing the NIDS robustness and defense evaluation.")
-
-def generate_pdf_report():
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
-    story = []
-    
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'ReportTitle',
-        parent=styles['Heading1'],
-        fontSize=18,
-        textColor=colors.HexColor('#1f2937'),
-        spaceAfter=12
-    )
-    heading_style = ParagraphStyle(
-        'SectionHeading',
-        parent=styles['Heading2'],
-        fontSize=14,
-        textColor=colors.HexColor('#374151'),
-        spaceBefore=10,
-        spaceAfter=6
-    )
-    body_style = ParagraphStyle(
-        'ReportBody',
-        parent=styles['Normal'],
-        fontSize=10,
-        textColor=colors.HexColor('#4b5563'),
-        spaceAfter=8
-    )
-    
-    # Title & Header
-    story.append(Paragraph("AI-Powered NIDS Adversarial Robustness Research Report", title_style))
-    story.append(Paragraph("<b>Generated by:</b> Automated Academic Research Suite (PhD Level)", body_style))
-    story.append(Paragraph("<b>Date:</b> October 2026 | <b>Target Models:</b> MLP vs. 1D-CNN", body_style))
-    story.append(Spacer(1, 10))
-    
-    # Section 1: Executive Summary
-    story.append(Paragraph("1. Executive Summary", heading_style))
-    summary_text = (
-        "This research report evaluates the vulnerability and adversarial robustness of Deep Learning-based "
-        "Network Intrusion Detection Systems (NIDS). Using Projected Gradient Descent (PGD) and Fast Gradient Sign Method (FGSM) "
-        "perturbation attacks, we demonstrate severe security flaws in standard baseline architectures and evaluate "
-        "the recovery performance achieved via Adversarial Training."
-    )
-    story.append(Paragraph(summary_text, body_style))
-    
-    # Section 2: Benchmark Results Table
-    story.append(Paragraph("2. Cross-Architecture Benchmark Results", heading_style))
-    data = [
-        ['Model Architecture', 'Clean Accuracy (%)', 'FGSM Robustness (%)', 'PGD Robustness (%)', 'Vulnerability'],
-        ['MLP (Baseline)', '99.80%', '42.10%', '18.50%', 'High'],
-        ['1D-CNN (Proposed)', '99.45%', '54.80%', '31.20%', 'Moderate']
-    ]
-    t = Table(data, colWidths=[130, 95, 95, 95, 80])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#374151')),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('BOTTOMPADDING', (0,0), (-1,0), 6),
-        ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#f3f4f6')),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#d1d5db'))
-    ]))
-    story.append(t)
-    story.append(Spacer(1, 10))
-    
-    # Section 3: Defense & XAI Insights
-    story.append(Paragraph("3. Adversarial Defense & XAI Attribution Insights", heading_style))
-    defense_text = (
-        "<b>Adversarial Retraining:</b> Implementing robust fine-tuning successfully restores model accuracy under aggressive "
-        "attacks, boosting PGD robustness from 18.5% up to 86.4% with minimal trade-off (-1.7%) on clean dataset performance.<br/>"
-        "<b>XAI Attribution:</b> Gradient-based feature importance analysis confirms that attackers primarily manipulate "
-        "<b>Flow Duration</b> and <b>Total Fwd Packets</b> to bypass signature and neural network boundaries."
-    )
-    story.append(Paragraph(defense_text, body_style))
-    
-    doc.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
-
-pdf_data = generate_pdf_report()
-
-st.download_button(
-    label="📥 Download Complete PhD Research Report (PDF)",
-    data=pdf_data,
-    file_name="NIDS_Adversarial_Robustness_PhD_Report.pdf",
-    mime="application/pdf"
-)
-        
+        st.download_button("Download PDF report", pdf_bytes(), "nids_robustness_report.pdf", "application/pdf")
+    except ImportError:
+        st.warning("Install reportlab to export the PDF report.")

@@ -1,4 +1,15 @@
 __pycache__/
 *.pyc
-data/kddcup.data_10_percent.csv
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
 .vscode/
+coverage.xml
+.coverage
+# the dataset is downloaded separately (see README)
+data/
+# trained weights are regenerated with python -m src.train
+checkpoints/
+*.pth
+*.pt
