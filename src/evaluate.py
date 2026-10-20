@@ -1,13 +1,14 @@
 """
 Full benchmark. Produces every number in README and the dashboard.
 
-    python -m src.evaluate --quick     # 1 seed, fewer budgets  (~5 min CPU)
-    python -m src.evaluate             # 3 seeds                (~20-30 min CPU)
+    python -m src.evaluate --quick                  # KDD, 1 seed, fewer budgets  (~5 min CPU)
+    python -m src.evaluate                          # KDD, 3 seeds                (~20-30 min CPU)
+    python -m src.evaluate --dataset unsw           # UNSW-NB15, 3 seeds
 
-Outputs
-    results/results.json         per-seed records, mean/std summary, XAI, metadata
-    results/robustness_*.png     detection rate vs eps
-    results/summary_table.md     table for the README
+Outputs (KDD in results/, UNSW-NB15 in results/unsw/)
+    results.json         per-seed records, mean/std summary, XAI, metadata
+    robustness_*.png     detection rate vs eps
+    summary_table.md     table for the README
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import platform
+import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -25,21 +27,21 @@ import torch
 from sklearn.ensemble import HistGradientBoostingClassifier
 
 from src.attack import ThreatModel, attack_malicious, pgd
-from src.dataset import DEFAULT_PATH, load_splits
+from src.dataset import SPECS, load_splits
 from src.explain import integrated_gradients, top_features
 from src.utils import HPARAMS, evaluate, metrics_from_scores, train_model
 
 NETS = ["mlp", "cnn"]
-DEFENSES = ["none", "adv_train"]
+DEFENSES = ["none", "adv_train", "adv_mix"]
 ATTACKS = ["fgsm", "pgd"]
 THREATS = ["unconstrained", "constrained"]
 
 
-def run(data_path, seeds, eps_list, epochs, out: Path):
+def run(data_path, seeds, eps_list, epochs, out: Path, dataset: str = "kdd"):
     records, xai, stats_all = [], {}, []
     t0 = time.time()
     for seed in seeds:
-        s = load_splits(data_path, seed=seed)
+        s = load_splits(data_path, seed=seed, dataset=dataset)
         stats_all.append(s.stats)
         Xte, yte = torch.as_tensor(s.X_test), s.y_test
         threats = {"unconstrained": ThreatModel.unconstrained(Xte.shape[1]),
@@ -52,11 +54,12 @@ def run(data_path, seeds, eps_list, epochs, out: Path):
             for d in DEFENSES:
                 t = time.time()
                 nets[(m, d)] = train_model(m, s.X_train, s.y_train, s.X_val, s.y_val, seed=seed,
-                                           adversarial=(d == "adv_train"), verbose=False, epochs=epochs)
+                                           adversarial=(d != "none"), verbose=False, epochs=epochs,
+                                           adv_mode="mix" if d == "adv_mix" else "replace")
                 clean = evaluate(nets[(m, d)], Xte, yte)
                 records.append(dict(seed=seed, model=m, defense=d, attack="clean", threat="none",
                                     eps=0.0, **clean))
-                print(f"  {m}+{d:9s} clean F1 {clean['f1']:.4f}  ({time.time()-t:.0f}s)")
+                print(f"  {m}+{d:9s} clean F1 {clean['f1']:.4f}  ({time.time()-t:.0f}s)", flush=True)
 
         gbt = HistGradientBoostingClassifier(random_state=seed).fit(s.X_train, s.y_train)
         records.append(dict(seed=seed, model="gbt", defense="none", attack="clean", threat="none",
@@ -81,12 +84,16 @@ def run(data_path, seeds, eps_list, epochs, out: Path):
 
         if seed == seeds[0]:
             xai = explain(s, nets, threats, yte_t)
+            xai["class_separation"] = class_separation(s, seed)
 
     summary = summarize(records)
     meta = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "runtime_sec": round(time.time() - t0, 1),
         "seeds": list(seeds),
+        "dataset": dataset,
+        "dataset_title": SPECS[dataset].title,
+        "frozen_in_constrained": SPECS[dataset].immutable,
         "data": stats_all[0],
         "eps": eps_list,
         "hyperparameters": {**HPARAMS, "epochs": epochs},
@@ -100,6 +107,25 @@ def run(data_path, seeds, eps_list, epochs, out: Path):
         json.dump({"meta": meta, "summary": summary, "xai": xai, "records": records}, f, indent=1)
     print(f"\n[*] {len(records)} records -> {out/'results.json'} ({meta['runtime_sec']}s)")
     return summary, xai
+
+
+def class_separation(s, seed: int, n_attack: int = 2000, n_benign: int = 40000) -> dict:
+    """L-inf distance from test attacks to the nearest benign training record.
+
+    No detector can be robust at budget eps for an attack whose nearest benign
+    record is closer than eps, so this bounds what adversarial training can
+    achieve on a dataset.
+    """
+    from sklearn.neighbors import NearestNeighbors
+
+    rng = np.random.default_rng(seed)
+    ben = s.X_train[s.y_train == 0]
+    att = s.X_test[s.y_test == 1]
+    ben = ben[rng.choice(len(ben), min(n_benign, len(ben)), replace=False)]
+    att = att[rng.choice(len(att), min(n_attack, len(att)), replace=False)]
+    d = NearestNeighbors(n_neighbors=1, metric="chebyshev").fit(ben).kneighbors(att)[0][:, 0]
+    return {"n_attack": len(att), "n_benign": len(ben), "median": round(float(np.median(d)), 4),
+            **{f"within_{e}": round(float((d <= e).mean()), 4) for e in (0.25, 0.5, 1.0)}}
 
 
 def explain(s, nets, threats, yte_t):
@@ -169,10 +195,12 @@ def plot(summary, out: Path):
 
     for t in THREATS:
         fig, ax = plt.subplots(figsize=(6.4, 4.2))
+        label = {"none": "", "adv_train": "(adv. trained)", "adv_mix": "(adv. trained, mixed)"}
         for (m, d), col, ls in [(("mlp", "none"), "#3987e5", "-"), (("cnn", "none"), "#d95926", "-"),
-                                (("mlp", "adv_train"), "#3987e5", "--"), (("cnn", "adv_train"), "#d95926", "--")]:
+                                (("mlp", "adv_train"), "#3987e5", "--"), (("cnn", "adv_train"), "#d95926", "--"),
+                                (("mlp", "adv_mix"), "#3987e5", "-."), (("cnn", "adv_mix"), "#d95926", "-.")]:
             x, y = series(m, d, "pgd", t)
-            ax.plot(x, y, ls, marker="o", color=col, lw=2, label=f"{m.upper()} {'(adv. trained)' if d != 'none' else ''}")
+            ax.plot(x, y, ls, marker="o", color=col, lw=2, label=f"{m.upper()} {label[d]}")
         x, y = series("gbt", "none", "pgd_from_mlp", t)
         ax.plot(x, y, ":", marker="s", color="#199e70", lw=2, label="GBT (transfer from MLP)")
         ax.set_xlabel("eps (feature std)")
@@ -207,17 +235,21 @@ def table(summary, eps=0.5) -> str:
 
 
 def main():
+    # the summary table contains ε and ±, which a Windows console code page cannot print
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser(description="Adversarial robustness benchmark for NIDS")
     p.add_argument("--quick", action="store_true")
-    p.add_argument("--data", default=str(DEFAULT_PATH))
-    p.add_argument("--out", default="results")
+    p.add_argument("--dataset", default="kdd", choices=sorted(SPECS))
+    p.add_argument("--data", default=None, help="data file (KDD) or folder (UNSW-NB15); defaults under data/")
+    p.add_argument("--out", default=None, help="defaults to results/ for KDD, results/<dataset>/ otherwise")
     a = p.parse_args()
     if a.quick:
         seeds, eps, epochs = [0], [0.1, 0.25, 0.5, 1.0], 6
     else:
         seeds, eps, epochs = [0, 1, 2], [0.1, 0.25, 0.5, 1.0, 2.0], HPARAMS["epochs"]
-    out = Path(a.out)
-    summary, _ = run(a.data, seeds, eps, epochs, out)
+    out = Path(a.out or ("results" if a.dataset == "kdd" else f"results/{a.dataset}"))
+    summary, _ = run(a.data, seeds, eps, epochs, out, dataset=a.dataset)
     plot(summary, out)
     t = table(summary)
     (out / "summary_table.md").write_text(t, encoding="utf-8")

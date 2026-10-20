@@ -56,9 +56,16 @@ def evaluate(model, X: torch.Tensor, y: np.ndarray) -> dict:
 
 
 def train_model(name: str, Xtr, ytr, Xva, yva, seed: int = 0, adversarial: bool = False,
-                threat: ThreatModel | None = None, verbose: bool = True, **hp):
-    """Train a neural detector. With `adversarial=True`, every batch's malicious
-    rows are replaced by PGD examples (Madry-style adversarial training)."""
+                threat: ThreatModel | None = None, verbose: bool = True, adv_mode: str = "replace", **hp):
+    """Train a neural detector. With `adversarial=True`, PGD examples of each
+    batch's malicious rows are used for training:
+
+      adv_mode="replace"  they replace the clean malicious rows (Madry-style)
+      adv_mode="mix"      they are added next to them, so the model keeps
+                          seeing unperturbed attacks
+    """
+    if adv_mode not in ("replace", "mix"):
+        raise ValueError(f"adv_mode must be 'replace' or 'mix', got {adv_mode!r}")
     h = {**HPARAMS, **hp}
     set_seed(seed)
     Xtr_t, ytr_t = torch.as_tensor(Xtr), torch.as_tensor(ytr)
@@ -78,9 +85,13 @@ def train_model(name: str, Xtr, ytr, Xva, yva, seed: int = 0, adversarial: bool 
             if adversarial:
                 mal = yb == 1
                 if mal.any():
-                    xb = xb.clone()
-                    xb[mal] = pgd(model, xb[mal], yb[mal], h["adv_eps"], threat,
-                                  steps=h["adv_steps"], seed=seed + epoch + i)
+                    x_adv = pgd(model, xb[mal], yb[mal], h["adv_eps"], threat,
+                                steps=h["adv_steps"], seed=seed + epoch + i)
+                    if adv_mode == "mix":
+                        xb, yb = torch.cat([xb, x_adv]), torch.cat([yb, yb[mal]])
+                    else:
+                        xb = xb.clone()
+                        xb[mal] = x_adv
             model.train()
             opt.zero_grad()
             loss = F.cross_entropy(model(xb), yb)

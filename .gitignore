@@ -13,3 +13,6 @@ data/
 checkpoints/
 *.pth
 *.pt
+
+# benchmark run logs
+*-run.log

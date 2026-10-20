@@ -17,26 +17,31 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-RESULTS = ROOT / "results" / "results.json"
+DATASETS = {"KDD Cup 1999": ROOT / "results" / "results.json",
+            "UNSW-NB15": ROOT / "results" / "unsw" / "results.json"}
 NAME = {"mlp": "MLP", "cnn": "1D-CNN", "gbt": "Gradient-boosted trees"}
-DEF = {"none": "No defence", "adv_train": "PGD adversarial training"}
+DEF = {"none": "No defence", "adv_train": "PGD adversarial training",
+       "adv_mix": "PGD adversarial training, clean + adversarial"}
 METRIC = {"recall": "Detection rate (recall)", "f1": "F1", "accuracy": "Accuracy", "roc_auc": "ROC-AUC"}
 
 st.set_page_config(page_title="NIDS Adversarial Robustness", page_icon="🛡️", layout="wide")
 
 
 @st.cache_data
-def load():
-    with open(RESULTS, encoding="utf-8") as f:
+def load(path: str):
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-if not RESULTS.exists():
+available = {k: p for k, p in DATASETS.items() if p.exists()}
+if not available:
     st.title("NIDS adversarial robustness benchmark")
     st.info("No results yet. Run `python -m src.evaluate --quick` from the repository root, then reload.")
     st.stop()
 
-R = load()
+choice = st.radio("Dataset", list(available), horizontal=True) if len(available) > 1 else next(iter(available))
+RESULTS = available[choice]
+R = load(str(RESULTS))
 S = pd.DataFrame(R["summary"])
 meta = R["meta"]
 
@@ -59,7 +64,8 @@ def curve(model, defense, attack, threat, metric):
 # ---------------------------------------------------------------- header
 st.title("How easily can an adversary slip past a neural intrusion detector?")
 d = meta["data"]
-st.caption(f"KDD Cup 1999 (10%): {d['rows_raw']:,} records, {d['rows_unique']:,} after removing duplicates, "
+TITLE = meta.get("dataset_title", "KDD Cup 1999 (10%)")
+st.caption(f"{TITLE}: {d['rows_raw']:,} records, {d['rows_used']:,} after removing duplicates, "
            f"{d['attack_share']:.0%} attacks · {len(meta['seeds'])} seed(s) · generated {meta['generated_at']}")
 
 mlp_clean = row("mlp", "none", "clean", "none", 0.0)
@@ -83,12 +89,12 @@ with tab1:
     a, b, m = st.columns(3)
     attack = a.radio("Attack", ["pgd", "fgsm"], format_func=str.upper, horizontal=True)
     threat = b.radio("Threat model", ["constrained", "unconstrained"], horizontal=True,
-                     help="Constrained: protocol, service, TCP flag and victim-side flags are frozen and "
-                          "features stay within the training range.")
+                     help="Constrained: what the connection is (protocol, service, TCP state) and anything "
+                          "the victim side produces are frozen, and features stay within the training range.")
     metric = m.radio("Metric", list(METRIC), format_func=METRIC.get, horizontal=True)
     lines = {}
     for mod in ["mlp", "cnn"]:
-        for de in ["none", "adv_train"]:
+        for de in [k for k in DEF if (S.defense == k).any()]:
             lines[f"{NAME[mod]} · {DEF[de]}"] = curve(mod, de, attack, threat, metric)
     if attack == "pgd":
         lines["Trees · transfer from MLP"] = curve("gbt", "none", "pgd_from_mlp", threat, metric)
@@ -143,7 +149,8 @@ with tab3:
     show["model"] = show.model.map(NAME).fillna(show.model)
     show["defense"] = show.defense.map(DEF)
     st.dataframe(show, use_container_width=True, hide_index=True)
-    st.download_button("Download results.json", RESULTS.read_bytes(), "results.json", "application/json")
+    st.download_button("Download results.json", RESULTS.read_bytes(), f"results_{meta.get('dataset', 'kdd')}.json",
+                       "application/json")
 
 with tab4:
     st.write("A PDF summary built from the same results file.")
@@ -164,7 +171,7 @@ with tab4:
         doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=48, rightMargin=48)
         ss = getSampleStyleSheet()
         story = [Paragraph("Adversarial robustness of neural intrusion detectors", ss["Title"]),
-                 Paragraph(f"KDD Cup 1999 (10%), {d['rows_unique']:,} unique records, "
+                 Paragraph(f"{TITLE}, {d['rows_used']:,} unique records, "
                            f"{len(meta['seeds'])} seed(s). Generated {meta['generated_at']}.", ss["Normal"]),
                  Spacer(1, 12)]
         hdr = ["Model", "Defence", "Clean"] + [f"PGD ε={e}" for e in meta["eps"]]

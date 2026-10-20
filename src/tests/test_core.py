@@ -7,7 +7,15 @@ import torch
 import torch.nn.functional as F
 
 from src.attack import ThreatModel, attack_malicious, fgsm, pgd
-from src.dataset import FEATURES, Preprocessor, prepare, synthetic_kdd
+from src.dataset import (
+    FEATURES,
+    UNSW_FEATURES,
+    UNSW_VICTIM_SIDE,
+    Preprocessor,
+    prepare,
+    synthetic_kdd,
+    synthetic_unsw,
+)
 from src.explain import integrated_gradients
 from src.models import NEURAL_MODELS, build_model
 from src.utils import evaluate, train_model
@@ -100,3 +108,70 @@ def test_integrated_gradients_completeness(mlp, splits):
 
 def test_feature_list_is_kdd():
     assert len(FEATURES) == 41
+
+
+# ---------------------------------------------------------------- UNSW-NB15
+@pytest.fixture(scope="module")
+def unsw():
+    return prepare(synthetic_unsw(600, seed=1), seed=0, dataset="unsw")
+
+
+def test_unsw_feature_list():
+    assert len(UNSW_FEATURES) == 42 and "id" not in UNSW_FEATURES
+
+
+def test_unsw_mask_freezes_victim_side_and_categoricals(unsw):
+    mask = unsw.prep.mutable_mask()
+    names = unsw.prep.feature_names
+    frozen = {n for n, m in zip(names, mask) if m == 0}
+    assert set(UNSW_VICTIM_SIDE) <= frozen
+    assert all(n in frozen for n in names if n.startswith(("proto=", "service=", "state=")))
+    assert mask[names.index("sbytes")] == 1 and mask[names.index("sttl")] == 1
+
+
+def test_unsw_label_conflicts_dropped():
+    df = synthetic_unsw(100, seed=4)
+    flipped = df.iloc[:10].copy()
+    flipped["label"] = 1 - flipped["label"]
+    s = prepare(pd.concat([df, flipped], ignore_index=True), seed=0, dataset="unsw")
+    assert s.stats["rows_label_conflict_dropped"] == 20
+    assert s.stats["rows_used"] == 90
+
+
+def test_unsw_duplicates_ignore_attack_cat():
+    df = synthetic_unsw(100, seed=5)
+    relabelled = df.copy()
+    relabelled.loc[relabelled.label == 1, "attack_cat"] = "DoS"
+    s = prepare(pd.concat([df, relabelled], ignore_index=True), seed=0, dataset="unsw")
+    assert s.stats["rows_unique"] == 100
+
+
+def test_preprocessor_remembers_dataset(unsw):
+    p2 = Preprocessor.from_dict(unsw.prep.to_dict())
+    assert p2.dataset == "unsw"
+    df = synthetic_unsw(5, seed=3)
+    assert np.allclose(unsw.prep.transform(df), p2.transform(df))
+
+
+def test_old_checkpoints_default_to_kdd(splits):
+    d = splits.prep.to_dict()
+    d.pop("dataset")
+    assert Preprocessor.from_dict(d).dataset == "kdd"
+
+
+def test_mixed_adversarial_training_keeps_clean_detection(splits):
+    net = train_model("mlp", splits.X_train, splits.y_train, splits.X_val, splits.y_val, seed=0,
+                      verbose=False, epochs=10, batch_size=64, adversarial=True, adv_mode="mix")
+    assert evaluate(net, torch.as_tensor(splits.X_test), splits.y_test)["f1"] > 0.8
+
+
+def test_unknown_adv_mode_is_rejected(splits):
+    with pytest.raises(ValueError):
+        train_model("mlp", splits.X_train, splits.y_train, splits.X_val, splits.y_val,
+                    adversarial=True, adv_mode="half")
+
+
+def test_unsw_model_learns(unsw):
+    net = train_model("mlp", unsw.X_train, unsw.y_train, unsw.X_val, unsw.y_val,
+                      seed=0, verbose=False, epochs=15, batch_size=64)
+    assert evaluate(net, torch.as_tensor(unsw.X_test), unsw.y_test)["f1"] > 0.8
