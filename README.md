@@ -8,6 +8,8 @@ This repository trains an MLP and a 1D-CNN on two datasets, KDD Cup 1999 and the
 
 **The headline:** the same detectors and the same attack that look robust on KDD Cup 1999 break on UNSW-NB15, and the standard defence collapses there. Attacks in UNSW-NB15 sit 3.7 times closer to benign traffic, which is enough to change every conclusion.
 
+**Live dashboard: https://ai-nids-adversarial-benchmark-publi.vercel.app**
+
 By [Ziya Azizov](https://www.linkedin.com/in/ziya-azizov-91bba638a). Companion project on graph-based detection: [GraphGuard IoT](https://graphguard-iot.vercel.app).
 
 ## Results
