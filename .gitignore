@@ -16,3 +16,5 @@ checkpoints/
 
 # benchmark run logs
 *-run.log
+site/build/
+.claude/
