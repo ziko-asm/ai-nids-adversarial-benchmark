@@ -10,7 +10,7 @@ This repository trains an MLP and a 1D-CNN on two datasets, KDD Cup 1999 and the
 
 **Live dashboard: https://ai-nids-adversarial-benchmark-publi.vercel.app**
 
-By [Ziya Azizov (ayfar)](https://ayfar.dev) · [LinkedIn](https://www.linkedin.com/in/ziya-azizov-91bba638a). Companion project on graph-based detection: [GraphGuard IoT](https://graphguard-iot.vercel.app).
+By [Ziya Azizov (ayfar)](https://ayfar.dev) · [LinkedIn](https://www.linkedin.com/in/ziyaazizov). Companion project on graph-based detection: [GraphGuard IoT](https://graphguard-iot.vercel.app).
 
 ## Results
 
